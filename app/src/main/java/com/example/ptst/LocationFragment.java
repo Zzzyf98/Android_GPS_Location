@@ -551,7 +551,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                         }
 
                                                         double test_latitude = 22.280102;
-                                                        double test_longitude = 114.142766;
+                                                        double test_longitude = 114.142763;
 
                                                         //en-route 判断是否经过vibration点
                                                         for (double[] coordinate : coordinates_vib) {

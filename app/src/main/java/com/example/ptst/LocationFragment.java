@@ -35,7 +35,9 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import com.amap.api.maps2d.model.MyLocationStyle;
@@ -55,11 +57,13 @@ import java.net.URISyntaxException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -91,6 +95,9 @@ import java.time.format.DateTimeFormatter;
 import com.amap.api.services.core.LatLonPoint;
 import com.amap.api.services.route.DriveRouteResult;
 import com.amap.api.services.route.RouteSearch;
+
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
 
 
 class SharedObject {
@@ -137,6 +144,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
     }
 
     Location gpslocation = new Location(0, 0);
+    Location target_gpslocation = new Location(0, 0);
     private String[] permissions = new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION
             , android.Manifest.permission.ACCESS_COARSE_LOCATION
             , Manifest.permission.ACCESS_LOCATION_EXTRA_COMMANDS};
@@ -221,6 +229,15 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
         et_module_id = view.findViewById(R.id.et_module_id);
 
 
+        Spinner spinnerStart = view.findViewById(R.id.spinner_start);
+        Spinner spinnerEnd = view.findViewById(R.id.spinner_end);
+        Button btnStartNavigation = view.findViewById(R.id.btn_start_navigation);
+        Map<String, LatLng> locationMap = new HashMap<>();
+        locationMap.put("Quon Hing Factory at Jiangmen", new LatLng(22.2044, 113.1107));
+        locationMap.put("Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)", new LatLng(22.214028, 113.54465));
+        locationMap.put("Export declaration", new LatLng(22.208883, 113.588472));
+        locationMap.put("Hong Kong -Zhuhai -MacaoBridge (Hong Kong Port)", new LatLng(22.30165, 113.973144));
+
 
         LocationActivity LocationActivity = (LocationActivity) getActivity();
 
@@ -235,6 +252,38 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
 
 
 
+// 在 onViewCreated 方法中为 btn_scan 设置点击事件
+        view.findViewById(R.id.btn_scan).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                IntentIntegrator integrator = new IntentIntegrator(getActivity());
+                integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+                integrator.setPrompt("Scan a QR Code");
+                integrator.setCameraId(0); // 使用后置摄像头
+                integrator.setBeepEnabled(true); // 扫描成功后播放提示音
+                integrator.setBarcodeImageEnabled(false); // 不保存扫描的二维码图片
+                integrator.setOrientationLocked(true); // 支持横竖屏
+                integrator.forSupportFragment(LocationFragment.this).initiateScan();
+            }
+        });
+
+
+        btnStartNavigation.setOnClickListener(v -> {
+            String startLocation = spinnerStart.getSelectedItem().toString();
+            String endLocation = spinnerEnd.getSelectedItem().toString();
+
+            LatLng startLatLng = locationMap.get(startLocation);
+            LatLng endLatLng = locationMap.get(endLocation);
+
+            if (startLatLng != null && endLatLng != null) {
+                planRoute(startLatLng, endLatLng);
+            } else {
+                Toast.makeText(getActivity(), "Invalid start or end location", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+
+
 
 
 
@@ -243,6 +292,80 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
             @Override
             public void onClick(View v) {
                 String module_id = et_module_id.getText().toString();
+                // GET LAT AND LONG
+
+                CountDownLatch plan_lock = new CountDownLatch(1);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        SharedPreferences sharedPreferences = getActivity().getSharedPreferences("MySharedPref", MODE_PRIVATE);
+                        String token_global = sharedPreferences.getString("token", "");
+
+
+                        OkHttpClient client = new OkHttpClient();
+
+                        JSONObject jsonObjectdp = new JSONObject();
+                        try {
+                            jsonObjectdp.put("module_id", module_id);
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
+//                        String json = "{\"module_id\": \"" + module_id + "\"" + "}";
+
+                        RequestBody requestBody = RequestBody.create(MediaType.parse("application/json; charset=utf-8"), jsonObjectdp.toString());
+
+                        Request request = new Request.Builder()
+                                .url("http://43.154.250.117:3000/plan_module_get")
+                                .addHeader("Content-Type", "application/json")
+                                .addHeader("Authorization", "Bearer " + token_global)
+                                .post(requestBody)
+                                .build();
+
+                        try (Response response = client.newCall(request).execute()) {
+                            if (response.isSuccessful()){
+                                try {
+                                    String jsonData = response.body().string();
+                                    JSONObject jsonObject = new JSONObject(jsonData);
+                                    String val_plan = jsonObject.get("plan").toString();
+                                    JSONObject js_plan = new JSONObject(val_plan);
+                                    String val_location_arrival = js_plan.get("location_arrival").toString();
+                                    JSONObject js_location_arrival = new JSONObject(val_location_arrival);
+                                    String val_location = js_location_arrival.get("location").toString();
+                                    JSONObject js_location = new JSONObject(val_location);
+                                    target_gpslocation.setLatitude(Double.parseDouble(js_location.get("lat").toString()));
+                                    target_gpslocation.setLongitude(Double.parseDouble(js_location.get("lng").toString()));
+                                    plan_lock.countDown();
+                                } catch (IOException | JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            else{
+                                // show error message
+                                getActivity().runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(getActivity(), "error in get taget location", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+
+
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }).start();
+
+                try {
+                    plan_lock.await(); // 等待计数器变为0,link上module后继续下面内容
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+
+
 
                 if (module_id.isEmpty()) {
                     Toast.makeText(getActivity(), "Please enter the module ID", Toast.LENGTH_SHORT).show();
@@ -406,7 +529,6 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                             String token_global = sharedPreferences.getString("token", "");
 
 
-
                                             OkHttpClient client = new OkHttpClient();
 
                                             JSONObject jsonObjectdp = new JSONObject();
@@ -432,7 +554,6 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                     try {
                                                         String jsonData = response.body().string();
                                                         JSONObject jsonObject = new JSONObject(jsonData);
-                                                        // 现在你可以使用jsonObject.get("key")来获取JSON对象中的数据
                                                         String time_departure = jsonObject.get("plan").toString();
                                                         JSONObject jsonObjecttd = new JSONObject(time_departure);
                                                         String time_departure_final = jsonObjecttd.get("time_departure").toString();
@@ -474,7 +595,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
 //                                    final int[] test_flag = {0};
 
                                     // send_module_postion to backend, 同时进行JIT判断,   两秒一次运行
-                                    executorService.scheduleAtFixedRate(new Runnable() {
+                                    executorService.scheduleWithFixedDelay(new Runnable() {
                                         @Override
                                         public void run() {
                                             try {
@@ -528,7 +649,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                     }
                                                     //判断车辆是否进入到工地坐标范围内
                                                     // 22.3264, 114.235   22.280572, 114.143484
-                                                    else if(calculateDistance(local_latitude, local_longitude, 22.3264, 114.235) < 300){
+                                                    else if(calculateDistance(local_latitude, local_longitude, target_gpslocation.getLatitude(), target_gpslocation.getLongitude()) < 300){
 
                                                         if(sharedObject.lable_status != 1){
                                                             updateModule(module_id, "arrived");
@@ -616,10 +737,6 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
         });
 
 
-
-
-
-
         if (aMap == null) {
             aMap = mMapView.getMap();
             aMap.setMapLanguage("en");
@@ -666,6 +783,10 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
     }
 
 
+
+    private void planRoute(LatLng startLatLng, LatLng endLatLng) {
+
+    }
 
 
 
@@ -896,6 +1017,21 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
         return true;
     }
 
+
+    // 在 Fragment 中重写 onActivityResult 方法处理扫描结果
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            if (result.getContents() != null) {
+                // 将扫描结果填充到 et_module_id
+                et_module_id.setText(result.getContents());
+            } else {
+                Toast.makeText(getActivity(), "No QR code found", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
 
 
 //    @Override

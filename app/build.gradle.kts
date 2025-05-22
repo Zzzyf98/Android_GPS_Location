@@ -46,6 +46,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.4.1")
     implementation("com.google.android.material:material:1.5.0")
     implementation("com.squareup.okhttp3:okhttp:4.9.1")
+    implementation ("com.google.zxing:core:3.4.1")
+    implementation("com.journeyapps:zxing-android-embedded:4.2.0")
     implementation(files("libs/AMap_Location_V6.4.3_20240314.jar"))
     implementation(files("libs/AMap_Search_V9.4.0_20220808.jar"))
     implementation(files("libs/Amap_2DMap_V6.0.0_20191106.jar"))

@@ -1,7 +1,9 @@
 package com.example.ptst;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +17,7 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -40,6 +43,11 @@ public class LoginActivity extends AppCompatActivity {
     private EditText et_username;
     private EditText et_password;
     private SharedPreferences msharedPreferences;
+
+    private String[] permissions = new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION
+            , android.Manifest.permission.ACCESS_COARSE_LOCATION
+            , Manifest.permission.ACCESS_LOCATION_EXTRA_COMMANDS};
+    private static final int OPEN_SET_REQUEST_CODE = 100;
 
     String token_global = null;
 
@@ -85,6 +93,14 @@ public class LoginActivity extends AppCompatActivity {
 
         et_username = findViewById(R.id.et_username);
         et_password = findViewById(R.id.et_password);
+
+
+        //先进行权限申请情况判断，没有权限申请权限
+        if (lacksPermission(permissions)) {
+            ActivityCompat.requestPermissions(this, permissions, OPEN_SET_REQUEST_CODE);
+        } else {
+            Log.i("LoginActivity", "");
+        }
 
         findViewById(R.id.loginbtn).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -165,6 +181,20 @@ public class LoginActivity extends AppCompatActivity {
                 new Thread(networkTask).start();
             }
         });
+
+
+
+    }
+
+    //判断是否获取权限
+    public boolean lacksPermission(String[] permissions) {
+        for (String permission : permissions) {
+            //判断是否缺少权限，true=缺少权限
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return true;
+            }
+        }
+        return false;
     }
 
 

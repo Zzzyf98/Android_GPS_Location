@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ptst_test</string>
+    <string name="app_name">ptst</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="large_text">
@@ -92,14 +92,21 @@
         "when a user tries to pick up one of cards.\n\n"
     </string>
     <string-array name="start_locations">
+        <item>My Location</item>
         <item>Quon Hing Factory at Jiangmen</item>
         <item>Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)</item>
-        <item>Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)</item>
+        <item>Hong Kong -Zhuhai -MacaoBridge (Hong Kong Port)</item>
+        <item>Sun Tin Truck Parking Lot</item>
+        <item>Tak Tin Street</item>
+
     </string-array>
     <string-array name="end_locations">
+        <item>My Location</item>
+        <item>Quon Hing Factory at Jiangmen</item>
         <item>Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)</item>
-        <item>Export declaration</item>
         <item>Hong Kong -Zhuhai -MacaoBridge (Hong Kong Port)</item>
+        <item>Sun Tin Truck Parking Lot</item>
+        <item>Tak Tin Street</item>
     </string-array>
 
 </resources>

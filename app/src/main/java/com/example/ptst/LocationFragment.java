@@ -23,6 +23,9 @@ import com.amap.api.location.AMapLocationClientOption;
 import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps2d.AMap;
 import com.amap.api.maps2d.MapView;
+import com.amap.api.maps2d.model.PolylineOptions;
+import com.amap.api.maps2d.model.Text;
+import com.amap.api.maps2d.model.TextOptions;
 import com.amap.api.services.core.AMapException;
 import com.amap.api.services.route.BusRouteResult;
 import com.amap.api.services.route.DrivePath;
@@ -99,6 +102,9 @@ import com.amap.api.services.route.RouteSearch;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 
+import android.graphics.Color; // 用于基本颜色操作（如 #FF0000）
+import android.content.res.ColorStateList; // 用于动态颜色状态（如按钮点击颜色变化）
+
 
 class SharedObject {
     boolean isConnected = false;
@@ -168,13 +174,17 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
 
     private MutableLiveData<Location> gpsLocationLiveData = new MutableLiveData<>();
 
-
+    private ScheduledExecutorService executorService;
+    private Text text; // 用于保存当前的文本标注
 
     public interface OnDataPass {
         void onDataPass(String data);
     }
 
     private OnDataPass dataPasser;
+
+    public Map<String, LatLng> locationMap = new HashMap<>();
+
 
     @Override
     public void onAttach(@NonNull Context context) {
@@ -232,11 +242,15 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
         Spinner spinnerStart = view.findViewById(R.id.spinner_start);
         Spinner spinnerEnd = view.findViewById(R.id.spinner_end);
         Button btnStartNavigation = view.findViewById(R.id.btn_start_navigation);
-        Map<String, LatLng> locationMap = new HashMap<>();
-        locationMap.put("Quon Hing Factory at Jiangmen", new LatLng(22.2044, 113.1107));
-        locationMap.put("Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)", new LatLng(22.214028, 113.54465));
-        locationMap.put("Export declaration", new LatLng(22.208883, 113.588472));
-        locationMap.put("Hong Kong -Zhuhai -MacaoBridge (Hong Kong Port)", new LatLng(22.30165, 113.973144));
+
+        locationMap.put("My Location", new LatLng(gpslocation.getLatitude(), gpslocation.getLongitude()));
+        locationMap.put("Quon Hing Factory at Jiangmen", new LatLng(22.535246, 113.141932));
+        locationMap.put("Hong Kong -Zhuhai-MacaoBridge (Zhuhai Port)", new LatLng(22.218051, 113.553273));
+        locationMap.put("Hong Kong -Zhuhai -MacaoBridge (Hong Kong Port)", new LatLng(22.316212, 113.960076));
+        locationMap.put("Sun Tin Truck Parking Lot", new LatLng(22.492241, 114.075811));
+        locationMap.put("Tak Tin Street", new LatLng(22.306646, 114.241924));
+
+
 
 
         LocationActivity LocationActivity = (LocationActivity) getActivity();
@@ -276,7 +290,11 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
             LatLng endLatLng = locationMap.get(endLocation);
 
             if (startLatLng != null && endLatLng != null) {
-                planRoute(startLatLng, endLatLng);
+                try {
+                    planRoute(startLatLng, endLatLng);
+                } catch (AMapException e) {
+                    throw new RuntimeException(e);
+                }
             } else {
                 Toast.makeText(getActivity(), "Invalid start or end location", Toast.LENGTH_SHORT).show();
             }
@@ -648,8 +666,8 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                         late_flag[0]++;
                                                     }
                                                     //判断车辆是否进入到工地坐标范围内
-                                                    // 22.3264, 114.235   22.280572, 114.143484
-                                                    else if(calculateDistance(local_latitude, local_longitude, target_gpslocation.getLatitude(), target_gpslocation.getLongitude()) < 300){
+                                                    // 22.3264, 114.235   22.280572, 114.143484  target_gpslocation.getLatitude(), target_gpslocation.getLongitude()) < 300
+                                                    else if(calculateDistance(local_latitude, local_longitude, 22.492241, 114.075811) < 300){
 
                                                         if(sharedObject.lable_status != 1){
                                                             updateModule(module_id, "arrived");
@@ -675,11 +693,11 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                         double test_longitude = 114.142763;
 
                                                         //en-route 判断是否经过vibration点
-                                                        for (double[] coordinate : coordinates_vib) {
+//                                                        for (double[] coordinate : coordinates_vib) {
                                                             // coordinate[1], coordinate[0]
-                                                            double distance = calculateDistance(local_latitude, local_longitude, coordinate[1], coordinate[0]);
+                                                            double distance = calculateDistance(local_latitude, local_longitude, local_latitude, local_longitude);
                                                             if (distance < 300) {
-                                                                if( vib_flag[0] % 3 == 0){
+                                                                if( vib_flag[0] % 300 == 0){
                                                                     // The distance is less than 500 meters
                                                                     textToSpeech.setLanguage(Locale.CHINESE);
 //                                                                    String message = "The vibration is too large, please drive carefully";
@@ -696,7 +714,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                                                                 }
                                                                 vib_flag[0]++;
                                                             }
-                                                        }
+//                                                        }
                                                     }
 
 
@@ -783,9 +801,105 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
     }
 
 
+    //高德api导航
+    private void planRoute(LatLng startLatLng, LatLng endLatLng) throws AMapException {
+        RouteSearch routeSearch = new RouteSearch(getActivity());
+        RouteSearch.FromAndTo fromAndTo = new RouteSearch.FromAndTo(
+                new LatLonPoint(startLatLng.latitude, startLatLng.longitude),
+                new LatLonPoint(endLatLng.latitude, endLatLng.longitude)
+        );
 
-    private void planRoute(LatLng startLatLng, LatLng endLatLng) {
+        RouteSearch.DriveRouteQuery query = new RouteSearch.DriveRouteQuery(
+                fromAndTo, RouteSearch.DRIVING_SINGLE_DEFAULT, null, null, ""
+        );
 
+        routeSearch.setRouteSearchListener(new RouteSearch.OnRouteSearchListener() {
+            @Override
+            public void onDriveRouteSearched(DriveRouteResult result, int errorCode) {
+                if (errorCode == 1000 && result != null && result.getPaths() != null && !result.getPaths().isEmpty()) {
+                    DrivePath drivePath = result.getPaths().get(0);
+                    aMap.clear();
+                    aMap.addPolyline(new PolylineOptions()
+                            .addAll(convertToLatLngList(drivePath.getPolyline()))
+                            .width(10)
+                            .color(Color.BLUE));
+                    aMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                            new LatLng(startLatLng.latitude, startLatLng.longitude), 15));
+
+                    // 获取预计时间（秒）并格式化
+                    final int[] durationInSeconds = {(int) drivePath.getDuration()};
+
+                    // 初始化定时任务
+                    executorService = Executors.newSingleThreadScheduledExecutor();
+
+                    executorService.scheduleWithFixedDelay(() -> {
+                        getActivity().runOnUiThread(() -> {
+                            if (text != null) {
+                                // Remove the old text marker
+                                text.remove();
+                            }
+
+                            // Get the current location
+                            double currentLatitude, currentLongitude;
+
+                            currentLatitude = gpslocation.getLatitude();
+                            currentLongitude = gpslocation.getLongitude();
+
+
+                            // Calculate ETA to the destination
+                            //                                double etaInSeconds = calTransTime(currentLatitude, currentLongitude,
+                            //                                        endLatLng.latitude, endLatLng.longitude);
+                            String formattedTime = formatDuration((int) durationInSeconds[0]);
+                            durationInSeconds[0] = durationInSeconds[0] - 2; // 每次更新时减少2秒
+
+                            // Get the current map center
+                            LatLng center = aMap.getCameraPosition().target;
+
+                            // Add new text marker with updated ETA
+                            text = aMap.addText(new TextOptions()
+                                    .position(center)
+                                    .text("ETA: " + formattedTime) // Update with dynamic ETA
+                                    .fontColor(Color.RED)
+                                    .fontSize(40));
+                        });
+                    }, 0, 10, TimeUnit.SECONDS);
+
+                    Toast.makeText(getActivity(), "Route planned successfully", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(getActivity(), "Failed to plan route", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onBusRouteSearched(BusRouteResult busRouteResult, int i) {}
+
+            @Override
+            public void onWalkRouteSearched(WalkRouteResult walkRouteResult, int i) {}
+
+            @Override
+            public void onRideRouteSearched(RideRouteResult rideRouteResult, int i) {}
+        });
+
+        routeSearch.calculateDriveRouteAsyn(query);
+    }
+
+    // 格式化时间为小时和分钟
+    private String formatDuration(int seconds) {
+        int hours = seconds / 3600;
+        int minutes = (seconds % 3600) / 60;
+        if (hours > 0) {
+            return hours + "h " + minutes + "m";
+        } else {
+            return minutes + "m";
+        }
+    }
+
+    private List<LatLng> convertToLatLngList(List<LatLonPoint> points) {
+        List<LatLng> latLngs = new ArrayList<>();
+        for (LatLonPoint point : points) {
+            latLngs.add(new LatLng(point.getLatitude(), point.getLongitude()));
+        }
+        return latLngs;
     }
 
 
@@ -803,6 +917,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
                     gpslocation.setLatitude(latitude);
                     gpslocation.setLongitude(longitude);
                     gpsLocationLiveData.postValue(gpslocation);
+                    locationMap.put("My Location", new LatLng(latitude, longitude));
                 }
 
                 amapLocation.getAccuracy();//获取精度信息
@@ -857,6 +972,7 @@ public class LocationFragment extends Fragment implements AMapLocationListener{
 
             @Override
             public void onDriveRouteSearched(DriveRouteResult driveRouteResult, int errorCode) {
+                Log.println(Log.INFO, "Test", "DriveRouteSearched called with errorCode: " + errorCode);
                 if (errorCode == 1000) { // 1000表示搜索成功
                     ETA_cnt.countDown();
                     if (driveRouteResult != null && driveRouteResult.getPaths() != null && driveRouteResult.getPaths().size() > 0) {

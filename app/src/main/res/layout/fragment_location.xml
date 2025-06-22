@@ -34,7 +34,7 @@
 
         <EditText
             android:id="@+id/et_module_id"
-            android:layout_width="wrap_content"
+            android:layout_width="86dp"
             android:layout_height="match_parent"
             android:hint="Enter Module_id"
             android:inputType="text"
@@ -42,7 +42,7 @@
 
         <Button
             android:id="@+id/btn_link"
-            android:layout_width="wrap_content"
+            android:layout_width="99dp"
             android:layout_height="match_parent"
             android:layout_marginRight="5dp"
             android:text="Link"

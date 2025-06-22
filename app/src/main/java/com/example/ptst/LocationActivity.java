@@ -213,9 +213,8 @@ public class LocationActivity extends AppCompatActivity implements LocationFragm
     public LiveData<String> getDataFromLocationFragment2() {
         return dataFromLocationFragment2;
     }
-//
-//
-//
+
+
 //    @Override
 //    protected void onDestroy() {
 //        super.onDestroy();
